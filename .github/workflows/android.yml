@@ -6,7 +6,15 @@ on:
     branches: [ main, master ]
 
 env:
+  # Opt in to Node 24 for JavaScript-based actions ahead of June 2, 2026
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -15,31 +23,39 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Keep shallow clone for speed unless you need full history
+          fetch-depth: 1
+
+      # Validate the Gradle Wrapper (supply-chain hardening)
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@v4
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '17' # If you move to AGP requiring 21, change here.
 
-      - name: Cache Gradle
-        uses: actions/cache@v4
+      # Official Gradle action: handles caching (wrapper + caches) for you
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
+          # Optional: enable build scan publishing if you want diagnostics
+          # build-scan-publish: 'on-failure'
+          gradle-home-cache-cleanup: true
 
       - name: Gradle wrapper permissions
         run: chmod +x ./gradlew
 
       - name: Build Debug APK
-        run: ./gradlew :app:assembleDebug
+        run: ./gradlew :app:assembleDebug --parallel --build-cache
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: GSS-Alumni-POM-APK
           path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6
