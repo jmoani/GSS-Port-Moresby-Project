@@ -1,5 +1,5 @@
 
-name: Android APK
+name: GSS Alumni Port Moresby
 
 on:
   workflow_dispatch:
